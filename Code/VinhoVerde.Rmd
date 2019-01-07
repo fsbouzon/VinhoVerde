@@ -1,0 +1,533 @@
+---
+title: 'Tipología y ciclo de vida de los datos: Práctica 2 - Limpieza y validación de los datos'
+author: "Autor: Francisco De Santos Bouzón"
+date: "Diciembre 2018"
+output:
+  word_document: default
+  pdf_document:
+    highlight: zenburn
+    toc: yes
+  html_document:
+    highlight: default
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    includes:
+      in_header: cabeceraUOC.html
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval=T, echo=T)
+```
+
+# Detalles de la actividad
+
+## Descripción
+
+>En esta actividad se elabora un caso práctico, consistente en el tratamiento de un conjunto de datos (en inglés, dataset), orientado a aprender a identificar los datos relevantes para un proyecto analítico y usar las herramientas de integración, limpieza, validación y análisis de las mismas.
+
+## Objetivos
+
+>Los objetivos que se persiguen mediante el desarrollo de esta actividad práctica son los siguientes: 
+>
+>* Aprender a aplicar los conocimientos adquiridos y su capacidad de resolución de problemas en entornos nuevos o poco conocidos dentro de contextos más amplios o multidisciplinares.
+* Saber identificar los datos relevantes y los tratamientos necesarios (integración, limpieza y validación) para llevar a cabo un proyecto analítico. 
+* Aprender a analizar los datos adecuadamente para abordar la información contenida en los datos. 
+* Identificar la mejor representación de los resultados para aportar conclusiones sobre el problema planteado en el proceso analítico. 
+* Actuar con los principios éticos y legales relacionados con la manipulación de datos en función del ámbito de aplicación. 
+* Desarrollar las habilidades de aprendizaje que permita continuar estudiando de un modo que tendrá que ser en gran medida autodirigido o autónomo. 
+* Desarrollar la capacidad de búsqueda, gestión y uso de información y recursos en el ámbito de la ciencia de datos.
+
+## Competencias
+
+>Así, las competencias del Máster en Data Science que se desarrollan son: 
+>
+>* Capacidad de analizar un problema en el nivel de abstracción adecuado a cada situación y aplicar las habilidades y conocimientos adquiridos para abordarlo y resolverlo.
+* Capacidad para aplicar las técnicas específicas de tratamiento de datos (integración, transformación, limpieza y validación) para su posterior análisis.
+
+# Resolución
+
+## Descripción del dataset
+
+>Este conjunto de datos está relacionado con las variantes blancas del vino portugués "Vinho Verde". Para más detalles, consulte la referencia [Cortez et al., 2009]. Debido a cuestiones de privacidad y logística, solo están disponibles las variables fisicoquímicas (entradas) y sensoriales (la salida) (por ejemplo, no hay datos sobre tipos de uva, marca de vino, precio de venta del vino, etc.).
+El conjunto de datos objeto de análisis se ha obtenido a partir de este enlace en Kaggle, aunque utilizaré el en lace de UCI para realizar la carga de datos, y está constituido por 12 características (columnas) que presentan 4898 valores (filas o registros).
+
+
+### Definición de atributos
+
+>* fixed.acidity: la mayoría de los ácidos relacionados con el vino o fijos o no volátiles (no se evaporan fácilmente).
+* volatile.acidity: la cantidad de ácido acético en el vino, que a niveles demasiado altos puede provocar un sabor desagradable a vinagre.
+* citric.acid: se encuentra en pequeñas cantidades, el ácido cítrico puede agregar 'frescura' y sabor a los vinos.
+* residual.sugar: la cantidad de azúcar restante después de que se detiene la fermentación.
+* chlorides: la cantidad de sal en el vino.
+* free.sulfur.dioxide: la forma libre de SO2 existe en equilibrio entre el SO2 molecular (como un gas disuelto) y el ión bisulfito; Previene el crecimiento microbiano y la oxidación del vino.
+* total.sulfur.dioxide: cantidad de formas libres y ligadas de SO2.
+* density: la densidad del agua es cercana a la del agua según el porcentaje de alcohol y contenido de azúcar.
+* pH: describe qué tan ácido o básico es un vino en una escala de 0 (muy ácido) a 14 (muy básico).
+* sulphates: un aditivo para el vino que puede contribuir a los niveles de gas de dióxido de azufre (S02), que actúa como antimicrobiano y antioxidante.
+* alcohol: el porcentaje de alcohol del vino.
+* quality: calidad del vino.
+
+### Importancia y objetivos del análisis
+
+>Nuestro objetivo será analizar el conjunto de datos indicado, para poder obtener los atributos que más influyen de forma positiva en la elaboración del Vinho Verde en la variedad de vino blanco.
+>
+>También pretendemos establecer un modelo predictivo que nos ayude a evaluar la calidad del vino en función de los los atributos que hayamos destacado como más influyentes para conseguir un mejor vino.
+
+### Proceso del estudio del juego de datos
+
+El primero paso consistirá en instalar y cargar las librerías necesarias
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Cargamos las librerías
+if(!require("ggplot2")){
+    install.packages("ggplot2", repos='http://cran.us.r-project.org')
+    library("ggplot2")
+}
+if(!require("dplyr")){
+    install.packages("dplyr", repos='http://cran.us.r-project.org')
+    library("dplyr")
+}
+if(!require("corrplot")){
+    install.packages("corrplot", repos='http://cran.us.r-project.org')
+    library("corrplot")
+}
+if(!require("nortest")){
+    install.packages("nortest", repos='http://cran.us.r-project.org')
+    library("nortest")
+}
+if(!require("grid")){
+    install.packages("grid", repos='http://cran.us.r-project.org')
+    library("grid")
+}
+if(!require("psych")){
+    install.packages("psych", repos='http://cran.us.r-project.org')
+    library("psych")
+}
+if(!require("Hmisc")){
+    install.packages("Hmisc", repos='http://cran.us.r-project.org')
+    library("Hmisc")
+}
+```
+
+Cargamos el juego de datos
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Carga de datos
+wine <- read.csv('http://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv',sep=";",header=TRUE)
+
+# Creamos la variable filas con la dimensión del dataset
+filas=dim(wine)[1]
+
+# Hacemos una copia del dataset para luego mostrar la correlación con ella
+winecor <- wine
+
+```
+
+Comprobamos la estructura del dataset.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Estructura y resumen
+str(wine)
+summary(wine)
+```
+
+### Selección de datos
+
+El dataset que estamos tratando agrupa distintos factores que intervienen en la elaboración del vino y que, en función de las cantidades de cada uno de esos componentes, hará que los resultados nos den unos vinos de mejor o de peor calidad. Por tanto, ya que todos los atributos influirán a la hora de la elaboración, no vamos a prescindir de ninguno de ellos.
+
+### Ceros y elementos vacíos.
+
+Habitualmente, los datos desconocidos se rellenan con el valor '0', con una '?' o dejando espacios en blanco. Por ello, el primer análisis que vamos a realizar es comprobar si efectivamente se encuentran valores que no se hayan rellenado a la hora de realizar este estudio.
+
+Buscamos si hay valores vacíos.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Comprobamos si hay valores que sean '0'
+colSums(is.na(wine))
+
+# Comprobamos si hay valores que sean '?'
+colSums(wine=="?")
+
+# Comprobamos si hay valores que sean ' '
+colSums(wine=="")
+```
+
+Tal y como podemos comprobar en los resultados obtenidos, no encontramos valores desconocidos en nuestro conjunto de datos. En caso de haberlos encontrado, deberáimos de decidir si prescindimos de ellos, si utilizamos su moda, ...
+
+### Localización de outliers.
+
+Los outliers, o valores extremos o atípicos, tal y como se puede encontrar en la definición de la wikipedia, es "una observación que es numéricamente distante del resto de los datos. Las estadísticas derivadas de los conjuntos de datos que incluyen valores atípicos serán frecuentemente engañosas". Voy a comprobar si efectivamente encontramos outliers en nuestro conjunto de datos. Todos nuestros datos son variables continuas, y sabemos que para una variable continua, los valores extremos son aquellas observaciones que se encuentran fuera de 1.5 * IQR, donde IQR, el 'Inter Quartile Range' es la diferencia entre 75 y 25 cuartiles. Voy a utilizar la función boxplot.stats para comprobar estos datos:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Outliers de "fixed.acidity"
+outlier_values <- boxplot.stats(wine$fixed.acidity)$out
+outlier_values
+boxplot(wine$fixed.acidity, main="Fixed Acidity", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "volatile.acidity"
+outlier_values <- boxplot.stats(wine$volatile.acidity)$out
+outlier_values
+boxplot(wine$volatile.acidity, main="Volatile Acidity", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "citric.acid"
+outlier_values <- boxplot.stats(wine$citric.acid)$out
+outlier_values
+boxplot(wine$citric.acid, main="Citric Acid", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "residual.sugar"
+outlier_values <- boxplot.stats(wine$residual.sugar)$out
+outlier_values
+boxplot(wine$residual.sugar, main="Residual Sugar", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "chlorides"
+outlier_values <- boxplot.stats(wine$chlorides)$out
+outlier_values
+boxplot(wine$chlorides, main="Chlorides", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "free.sulfur.dioxide"
+outlier_values <- boxplot.stats(wine$free.sulfur.dioxide)$out
+outlier_values
+boxplot(wine$free.sulfur.dioxide, main="Free Sulfur Dioxide", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "total.sulfur.dioxide"
+outlier_values <- boxplot.stats(wine$total.sulfur.dioxide)$out
+outlier_values
+boxplot(wine$total.sulfur.dioxide, main="Total Sulfur Dioxide", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "density"
+outlier_values <- boxplot.stats(wine$density)$out
+outlier_values
+boxplot(wine$density, main="Density", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "pH"
+outlier_values <- boxplot.stats(wine$pH)$out
+outlier_values
+boxplot(wine$pH, main="pH", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "sulphates"
+outlier_values <- boxplot.stats(wine$sulphates)$out
+outlier_values
+boxplot(wine$sulphates, main="Sulphates", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+
+# Outliers de "alcohol"
+outlier_values <- boxplot.stats(wine$alcohol)$out
+outlier_values
+boxplot(wine$alcohol, main="Alcohol", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+```
+
+Se puede apreciar, salvo en alcohol y densidad, que existen bastantes outliers. Pero este conjunto de datos muestra distintas combinaciones que harán que la calidad del vino varíe. Lo que para un atributo aparezca como un valor atípico hará que el vino tome unas caracterísitcas que producirán un vino de un tipo en particular, con una calidad distinta, por lo que contaremos con todos los valores que muestra el conjunto de datos. Los valores indicados como valores extremos, para nuestro caso, son valores posibles que marcarán que el vino adquiera cierta calidad.
+
+Como se indica en la propia descripción del dataset "las entradas incluyen pruebas objetivas", y por ello vamos a mantener todos los outliers como valores posibles, ya que son las medidas normales que se suelen utilizar. Indicamos el texto del conjunto de datos original:
+
+"In the above reference, two datasets were created, using red and white wine samples. The inputs include objective tests (e.g. PH values) and the output is based on sensory data (median of at least 3 evaluations made by wine experts). Each expert graded the wine quality between 0 (very bad) and 10 (very excellent)."
+
+### Comprobación de la normalidad
+
+Para la comprobación de que los valores que toman nuestras variables cuantitativas provienen de una población distribuida normalmente, utilizaremos la prueba de normalidad de Anderson Darling. Así, se comprueba que para cada prueba se obtiene un p-valor superior al nivel de significación prefijado alpha = 0,05. Si esto se cumple, entonces se considera que variable en cuestión sigue una distribución normal.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+alpha = 0.05 
+col.names = colnames(wine)
+for (i in 1:ncol(wine)) { 
+	if (i == 1) cat("Variables que no siguen una distribución normal:\n") 
+	if (is.integer(wine[,i]) | is.numeric(wine[,i])) { 
+		p_val = ad.test(wine[,i])$p.value 
+		if (p_val < alpha) { 
+			cat(col.names[i])
+			if (i < ncol(wine) - 1) cat(", ") 
+			if (i %% 3 == 0) cat("\n")
+		}
+	}
+  if (i == 11)
+    break()
+}
+```
+
+Comprobamos que ninguna de las variables siguen una distribución normal.
+
+Para verificar lo ya indicado, nos vamos a apoyar en las gráficas Q-Q (Cuantil - Cuantil), las cuales nos ayudarán a comparar gráficamente dos distribuciones. El gráfico Q-Q ayuda a comparar gráficamente dos distribuciones comparando los cuantiles de dos distribuciones. Lo que haremos será comparar nuestros datos con los valores teóricos de una distribución normal y si, nuestros datos siguen una distribución normal, el gráfico será como una línea recta.
+Para ello utilizaremos dos funciones que tenemos en R, qqnorm y qqline: 
+* Con la función qqnorm podemos generar un gráfico Q-Q que comparará los cuantiles de los datos que tenemos sobre el vino con los cuantiles teóricos de la distribución normal estándar. 
+* Con la función qqline podemos superponer una línea para ayudarnos a evaluar la relación lineal de las dos distribuciones. Dicha línea cruza los puntos del primer y del tercer cuartil.
+
+Pasemos a comprobarlo:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+par(mfrow=c(2,2))
+for(i in 1:ncol(wine)) {
+  if (is.numeric(wine[,i])){
+    qqnorm(wine[,i],main = paste("Normal Q-Q Plot for ",colnames(wine)[i]))
+    qqline(wine[,i],col="red")
+    hist(wine[,i], 
+      main=paste("Histogram for ", colnames(wine)[i]), 
+      xlab=colnames(wine)[i], freq = FALSE)
+  }
+  if (i == 11)
+    break()
+}
+```
+
+En las distintas gráficas observamos que todas las variables tienen alguna desviación con respecto a la línea que indica lo que sería la distribución normal y, por ello, podemos resumir diciendo que ninguna de ellas sigue una distribución normal.
+
+Vamos a realizar otra comprobación para verificar este punto. Para ello, utilizaremos el test de Shapiro-Wilk para contrastar la normalidad, ya que dicho test se usa para contrastar si un conjunto de datos siguen una distribución normal o no. Realizaremos el siguiente contraste de hipótesis:
+
+* H0: los datos provienen de una distribución normal
+* H1: los datos no provienen de una distribución normal
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+shapiro.test(wine$fixed.acidity)
+shapiro.test(wine$volatile.acidity)
+shapiro.test(wine$citric.acid)
+shapiro.test(wine$residual.sugar)
+shapiro.test(wine$chlorides)
+shapiro.test(wine$free.sulfur.dioxide)
+shapiro.test(wine$total.sulfur.dioxide)
+shapiro.test(wine$density)
+shapiro.test(wine$pH)
+shapiro.test(wine$sulphates)
+shapiro.test(wine$alcohol)
+```
+
+Obtenemos en todos los casos que p-value es menor a 0.05, por lo que rechazamos la hipótesis nula y confirmamos que las variables no siguen una distribución normal.
+
+### Análisis de la homogeneidad de la varianza
+
+Para realizar el análisis de la homogeneidad de la varianza, debido a que ya hemos comprobado que las variables no siguen una distribución normal, vamos a utilizar pruebas no paramétricas. Es por ello que utilizaremos el test de Fligner-Killeen, el cual es un test no paramétrico que compara las varianzas basándose en la mediana.
+
+Lo primero que vamos a hacer es agrupar los valores de la calidad del vino. Hemos optamos por definir 3 valores, bueno, regular y malo.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+winecor$quality <- ifelse(winecor$quality < 6, 'bad', ifelse(winecor$quality == 6, 'normal', 'good'))
+
+winecor$quality <- as.factor(winecor$quality)
+```
+
+ Vamos a estudiar esta homogeneidad en cuanto a los grupos conformados por la calidad del vino frente a cada una de las variables restantes. En el siguiente test, la hipótesis nula consiste en que ambas varianzas son iguales. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+fligner.test(winecor$fixed.acidity, winecor$quality)
+fligner.test(winecor$volatile.acidity, winecor$quality)
+fligner.test(winecor$citric.acid, winecor$quality)
+fligner.test(winecor$residual.sugar, winecor$quality)
+fligner.test(winecor$chlorides, winecor$quality)
+fligner.test(winecor$free.sulfur.dioxide, winecor$quality)
+fligner.test(winecor$total.sulfur.dioxide, winecor$quality)
+fligner.test(winecor$density, winecor$quality)
+fligner.test(winecor$pH, winecor$quality)
+fligner.test(winecor$sulphates, winecor$quality)
+fligner.test(winecor$alcohol, winecor$quality)
+```
+
+Hemos obtenido en todos los casos un p-valor inferior a 0,05, rechazando la hipótesis de que las varianzas de las muestras sean homogéneas.
+
+## Pruebas estadísticas
+
+### Variables que influyen más en la calidad del vino
+
+La correlación es una técnica estadística usada para determinar la relación entre dos o más variables. La correlación puede ser de al menos dos variables o de una variable dependiente y dos o más variables independientes, denominada correlación múltiple. El coeficiente de correlación es un valor cuantitativo de la relación entre dos o más variables. El coeficiente de correlación puede variar desde -1.00 hasta 1.00. La correlación de proporcionalidad directa o positiva se establece con los valores +1.00 y de proporcionalidad inversa o negativa, con -1.00. No existe relación entre las variables cuando el coeficiente es de 0.00. Vamos a estudiar dicho coeficiente mostrando una tabla que relacione todas las variables del estudio y así comprobar la relación existente entre todas las variables entre sí.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Tabla de correlación
+winecor <- wine
+correlation<-cor(winecor[,c("fixed.acidity","volatile.acidity","citric.acid","residual.sugar","chlorides","free.sulfur.dioxide","total.sulfur.dioxide","density","pH","sulphates","alcohol", "quality")])
+corrplot(correlation,method = "circle")
+```
+
+Veamos una gráfica completa.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+pairs.panels(correlation , pch=21,main="Grafica completa")
+```
+
+Vamos a resumirlo con cifras para que nos quede más claro.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+rcorr(as.matrix(wine))
+```
+
+Vamos a considerar que existe una alta correlación positiva cuando el valor obtenido está entre 0.80 y 1, y una alta correlación negativa cuando dicho valor se encuentra entre -0.80 y -1. En este sentido hemos obtenido:
+
+* Alta correlación positiva: density y residual sugar (0.94), total sulfur dioxide y free sulfur dioxide (0.83), y total sulfur dioxide y density (0.80)
+* Alta correlación negativa: alcohol y density (-0.96), alcohol y residual sugar (-0.84), y total sulfur dioxide y alcohol (-0.83)
+
+Estos resultados nos indican que podríamos prescindir de uno de los pares en los valores más altos, como density - residual sugar y alcohol - density, ya que ambos pares nos darán información altamente correlacionada. 
+
+Si observamos la correlación existente entre nuestras variables con respecto a quality, encontramos una correlación positiva bastante alta con alcohol (0.74), así como negativa con density (-0.69) y total sulfur dioxide (-0.60)
+
+Vamos a centrarnos en la relación de la calidad con el resto de atributos para ver si se cumple lo mencionado anteriormente, así como para obtener información más concluyente.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=fixed.acidity)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Fixed Acidity")
+```
+
+No muestra nada significativo. "Fixed Acidity" no tiene influencia en la calidad.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=volatile.acidity)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Volatile Acidity")
+```
+
+Demostramos que cuanto menor sea "Volatile Acidity", peor calidad tendrá el vino.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=citric.acid)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Citric Acid")
+```
+
+No muestra nada significativo. Apenas influye "Citric Acid" en la calidad.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=residual.sugar)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Residual Sugar")
+```
+
+Se observa que prácticamente se mantiene constante la calidad del vino con respecto al "Residual Sugar", aunque la mayor calidad se consigue en vino con mucho menos "Residual Sugar". 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=chlorides)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Chlorides")
+```
+
+Comprobamos que cuanto menor sea la cantidad de "Chlorides", mejor será la calidad del vino.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=free.sulfur.dioxide)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Free Sulfur Dioxide")
+```
+
+Gráfica un tanto complicada, aunque podemos observar que los mejores y peores vinos tienen menor concentración de "Free Sulfur Dioxide".
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=total.sulfur.dioxide)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Total Sulfur Dioxide")
+```
+
+Cuanto mayor sea "Total Sulfur Dioxide", peor será el vino. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=density)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Density")
+```
+
+Comprobamos que "Density" influye significativamente en la calidad del vino. Menor densidad, mejor calidad.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=pH)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("pH")
+```
+
+Comprobamos como el pH influye en la calidad del vino, ya que en función de los distintos valores aportados, obtendremos una calidad u otra.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=sulphates)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Sulphates")
+```
+
+Se observa que se mantiene sin cambios significativos, menos que los vinos con la mejor calidad tienen menos "Sulphates".
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(winecor, aes(x=as.factor(quality), y=alcohol)) + geom_boxplot(fill="slateblue", alpha=0.2) +  xlab("Wine Quality") + ylab("Alcohol")
+```
+
+Comprobamos que a mayor cantidad de "Alcohol", los vinos serán de mayor calidad.
+
+Para comprobar si las afirmaciones realizadas se cumplen, vamos a realizar la prueba de Kruskal-Wallis. Dicha prueba es un método no paramétrico para probar si un grupo de datos proviene de la misma población. Si tenemos K muestras aleatorias independientes posiblemente de distintos tamaños de k poblaciones distintas.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+kruskal.test(winecor$fixed.acidity, winecor$quality)
+kruskal.test(winecor$volatile.acidity, winecor$quality)
+kruskal.test(winecor$citric.acid, winecor$quality)
+kruskal.test(winecor$residual.sugar, winecor$quality)
+kruskal.test(winecor$chlorides, winecor$quality)
+kruskal.test(winecor$free.sulfur.dioxide, winecor$quality)
+kruskal.test(winecor$total.sulfur.dioxide, winecor$quality)
+kruskal.test(winecor$density, winecor$quality)
+kruskal.test(winecor$pH, winecor$quality)
+kruskal.test(winecor$sulphates, winecor$quality)
+kruskal.test(winecor$alcohol, winecor$quality)
+```
+
+Observamos que las variables que nos muestran diferencias más significativas, y que influyen más en la calidad del vino, son aquellas que hemos mencionado en el apartado anterior. Estas son volatile acidity, residual sugar, chlorides, free sulfur dioxide, total sulfur dioxide, density y alcohol, pudiendo mencionar igualmente el pH.
+
+### Modelo predictivo
+
+Como objetivo final, nos interesa poder realizar predicciones sobre la calidad del vino, lo que nos permitirá crear mejores vinos en función de ciertos atributos. Para ello utilizaremos Random Forest, que es un algoritmo predictivo el cual combina diferentes arboles, donde cada árbol es construido con observaciones y variables aleatorias.
+
+Nos apoyaremos en los datos extraídos en el apartado anterior, el cual nos indicaba las mejores variables para poder realizar dicha predicción.
+
+Debido a esto, lo primero que ahremos será definir la nueva estructura que vamos a utilizar.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+subset <- wine[,c("volatile.acidity","residual.sugar","chlorides","free.sulfur.dioxide","total.sulfur.dioxide","pH","density","alcohol","quality")]
+```
+
+Para poder extraer la información de forma más precisa, realizaremos una agrupación de los valores de calidad en "bueno", "malo" y "normal", discretizando la variable resultante.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+subset$quality <- ifelse(subset$quality < 6, 'bad', ifelse(subset$quality == 6, 'normal', 'good'))
+
+subset$quality <- as.factor(subset$quality)
+```
+
+Comenzamos seleccionando un subconjunto de datos aleatorio dentro de nuestra muestra, e indicamos que nos basaremos en la calidad para realizar nuestra predicción.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+set.seed(666)
+data_random <- subset[sample(nrow(subset)),]
+
+set.seed(666)
+y<-data_random[,9] # Calidad
+X <- data_random[,1:8] # Resto de atributos
+```
+
+Preparamos un grupo de datos para entrenar nuestro modelo, que será de 2/3 de los datos totales, y los datos restantes los utilizaremos para comprobar si nuestro modelo es suficientemente bueno.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+indexesRF = sample(1:nrow(subset), size=floor((2/3)*nrow(subset)))
+trainXRF<-X[indexesRF,]
+trainyRF<-y[indexesRF]
+testXRF<-X[-indexesRF,]
+testyRF<-y[-indexesRF]
+```
+
+Creamos el model utilizando el modelo Random Forest.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+modelRF <- randomForest::randomForest(trainXRF,trainyRF)
+modelRF
+```
+
+Ahora realizaremos la predicción utilizando el model de aprendizaje creado en el punto anterior, e introducimos los valores de test para ver qué clasificación nos haría.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+predicted_modelRF <- predict( modelRF, testXRF, type="class" )
+print(sprintf("La precisión del árbol es: %.4f %%",100*sum(predicted_modelRF == testyRF) / length(predicted_modelRF)))
+```
+
+Cuando no hay más de veinte clases, el rendimiento en el subconjunto de entrenamiento se analiza mediante una matriz de confusión que identifica los tipos de errores cometidos. La matriz de confusión es la medida típica para expresar la calidad de las clases obtenidas con un modelo.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+mat_confRF<-table(testyRF,Predicted=predicted_modelRF)
+mat_confRF
+```
+
+Por último comprobamos el percentaje de registros clasificados correctamente.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+porcentaje_correctRF<-100 * sum(diag(mat_confRF)) / sum(mat_confRF)
+print(sprintf("El %% de registros correctamente clasificados es: %.4f %%",porcentaje_correctRF))
+```
+
+## Conclusiones
+
+Mediante diversas pruebas estadísticas, hemos intentado cumplir con el objetivo que hemos planteado al comienzo del estudio. Se han analizado los datos proporcionados para intentar obtener el conocimiento necesario aportado por ellos y mostrar, mediante distintas herramientas, la iniformación que finalmente nos ayudase a plantear un algoritmo predictivo sobre la calidad de esta variedad de vino.
+
+Nuestro estudio ha comenzado analizando los datos con los que contamos, comprobando si dentro de ellos encontramos valores vacíos y/o valores atípicos. En el primer caso se ha verificado que todos los datos están completos, por lo que en este sentido no se ha tenido que realizar ningún tipo de modificación. En cuanto a los valores atípicos, sí que se ha comprobado que existen diversos datos de los considerados extremos. Debido a que, como se ha mencionado durante el estudio, estos datos provienen de pruebas objetivas que marcarán la calidad final del vino, se ha optado por mantenerlos, ya que consideramos que todos ellos son los que nos aportarán la información necesaria para poder establecer los atributos más influyentes en la elaboración de un vino de una calidad determinada.
+
+Gracias al análisis de la correlación y del contraste de hipótesis hemos podido extraer cuáles son los atributos más determinantes e influyentes para poder elaborar un vino con una calidad específica. Y, mediante la utilización de dichos atributos, hemos podido generar un modelo predictivo utilizando el algoritmo Random Forest que nos va a permitir obtener, previo a la propia elaboración del vino, la calidad que obtendríamos combinando distintas cantidades de cada uno de ellos. 
+
+Con todo ello, nos vemos capacitados para poder elaborar vino de más alta calidad centrándonos en los valores de unos atributos específicos que hemos podido localizar gracias al estudio que hemos llevado a cabo.
